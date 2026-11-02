@@ -1,0 +1,4 @@
+requests>=2.31
+aiohttp>=3.9
+qrcode>=7.4
+Pillow>=10.0

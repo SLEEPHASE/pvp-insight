@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# 本地配置、日志、缓存
+config.json
+web_url.txt
+debug/
+logs/
+*.log
+
+# 临时文件
+*.zip
+*.tmp
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# 打包产物
+build/
+dist/
+*.spec
+PVP-Insight-Windows-x64.zip
+data/
