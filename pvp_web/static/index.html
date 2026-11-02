@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>PVP Insight · 完美平台对局情报</title>
+  <link rel="icon" href="/favicon.png">
+  <link rel="stylesheet" href="/style.css?v=20261103">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"><span></span></div>
+        <div class="brand-text">
+          <h1>PVP INSIGHT</h1>
+          <p>完美平台 · 对局情报</p>
+        </div>
+      </div>
+      <div id="statusPill" class="status-pill waiting">
+        <i class="dot"></i><span id="statusText">正在连接…</span>
+      </div>
+      <div class="actions">
+        <button id="loginBtn" class="btn primary">扫码登录</button>
+        <button id="accountChip" class="account-chip hidden" title="账号设置">
+          <span class="account-dot"></span><span id="accountName">已登录</span>
+        </button>
+        <button id="refreshBtn" class="btn">刷新</button>
+        <button id="settingsBtn" class="btn icon-btn" title="设置">⚙</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="emptyView" class="empty">
+        <div class="radar" aria-hidden="true">
+          <div class="radar-grid"></div>
+          <div class="radar-sweep"></div>
+          <span class="blip b1"></span><span class="blip b2"></span><span class="blip b3"></span>
+        </div>
+        <h2>等待对局开始</h2>
+        <p class="empty-sub">进入完美平台匹配后，双方 10 名玩家的段位与评分会自动出现在这里</p>
+        <div class="steps">
+          <div class="step"><b>01</b><strong>启动平台</strong><span>完美平台客户端保持在线</span></div>
+          <div class="step"><b>02</b><strong>进入对局</strong><span>匹配成功并进入服务器</span></div>
+          <div class="step"><b>03</b><strong>覆盖层查看</strong><span>Shift+Tab 打开 Steam 浏览器</span></div>
+        </div>
+        <div id="steamHint" class="steam-hint"></div>
+        <div id="emptyActions" class="empty-actions"></div>
+      </section>
+
+      <section id="matchView" class="match hidden">
+        <div class="match-bar">
+          <div class="match-left">
+            <div class="live-line"><i id="liveDot" class="dot"></i><span id="matchState">LIVE</span></div>
+            <h2 id="mapName">—</h2>
+            <p id="matchId">—</p>
+          </div>
+          <div class="score-box">
+            <div class="score"><span id="ctScore" class="ct">0</span><em>:</em><span id="tScore" class="t">0</span></div>
+            <div class="half"><span>CT</span><span id="halfScore"></span><span>T</span></div>
+          </div>
+          <div class="match-right">
+            <div id="roundLabel">—</div>
+            <div id="playerCount">0 名玩家</div>
+          </div>
+        </div>
+
+        <div class="teams">
+          <section class="team own">
+            <header>
+              <div class="team-title"><h3 id="ownTitle">自己家</h3><span id="ownSide" class="side ct">CT</span></div>
+              <div id="ownAvg" class="team-avg">均分 —</div>
+            </header>
+            <div id="ownList" class="player-list"></div>
+          </section>
+          <section class="team opp">
+            <header>
+              <div class="team-title"><h3 id="oppTitle">对手</h3><span id="oppSide" class="side t">T</span></div>
+              <div id="oppAvg" class="team-avg">均分 —</div>
+            </header>
+            <div id="oppList" class="player-list"></div>
+          </section>
+        </div>
+
+        <div class="summary">
+          <div class="summary-label">纸面胜率 <b id="winPct">—</b><span id="summaryDetail"></span></div>
+          <div class="prob"><div id="probFill" class="prob-fill"></div><i id="probMark"></i></div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>只读 · 零注入 · 不修改游戏文件 · 不读取游戏内存</span>
+      <span id="footRight">本地网页 · 非官方工具</span>
+    </footer>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- 扫码登录 -->
+  <div id="loginModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card login-card">
+      <button class="modal-close" data-close="loginModal">×</button>
+      <h3>扫码登录完美平台</h3>
+      <p class="modal-sub">使用「完美世界电竞」APP 扫码，解锁 Rating、最高段位与 S 段星数</p>
+      <div class="qr-wrap"><img id="qrImg" alt="登录二维码"><div id="qrPlaceholder">正在申请二维码…</div></div>
+      <div id="loginMsg" class="login-msg">正在连接登录服务器…</div>
+      <div class="modal-actions">
+        <button id="qrRefreshBtn" class="btn">刷新二维码</button>
+        <button class="btn primary" data-close="loginModal">关闭</button>
+      </div>
+      <p class="fineprint">令牌仅保存在本机，使用 Windows DPAPI 加密；不会发送到浏览器。</p>
+    </div>
+  </div>
+
+  <!-- 设置 -->
+  <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card settings-card">
+      <button class="modal-close" data-close="settingsModal">×</button>
+      <h3>设置</h3>
+      <label class="field">
+        <span>监控 SteamID</span>
+        <div class="input-row">
+          <input id="steamInput" inputmode="numeric" placeholder="17 位 SteamID64" autocomplete="off">
+          <button id="autoDetectBtn" class="btn">自动检测</button>
+        </div>
+      </label>
+      <div id="accountBox" class="account-box"></div>
+      <div class="settings-links">
+        <button id="safetyBtn" class="btn ghost">安全与反作弊说明</button>
+        <button id="logoutBtn" class="btn danger hidden">退出登录</button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" data-close="settingsModal">取消</button>
+        <button id="saveSettingsBtn" class="btn primary">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 安全说明 -->
+  <div id="safetyModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card safety-card">
+      <button class="modal-close" data-close="safetyModal">×</button>
+      <h3>安全与反作弊说明</h3>
+      <p class="modal-sub">本工具是纯外部查询程序，工作方式与浏览完美平台网页相同。</p>
+      <ul class="safety-list">
+        <li><b>不修改游戏文件</b><span>不写入 CS2、Steam 或完美平台目录。</span></li>
+        <li><b>不注入进程</b><span>不加载 DLL、不挂钩子、不附加到游戏客户端。</span></li>
+        <li><b>不读取游戏内存</b><span>没有内存读取、指针扫描或驱动组件。</span></li>
+        <li><b>不读取游戏网络</b><span>不抓包；只主动请求完美平台公开战绩接口。</span></li>
+        <li><b>不模拟输入</b><span>不发送任何键鼠事件，不自动开枪。</span></li>
+        <li><b>Steam 覆盖层</b><span>只是用 Steam 自带浏览器打开本地网页，不接触游戏进程。</span></li>
+      </ul>
+      <div class="warn-box">
+        <b>为什么不能承诺 100% 不封？</b>
+        <p>任何第三方程序都无法获得平台的 100% 不封保证。用户的账号处置还取决于平台规则与人工判断。本工具能做的，是把技术接触面降到最低：不注入、不读内存、不改文件、不监听输入。是否使用请自行判断。</p>
+      </div>
+      <div class="modal-actions"><button class="btn primary" data-close="safetyModal">我已知晓</button></div>
+    </div>
+  </div>
+
+  <script src="/app.js?v=20261103"></script>
+</body>
+</html>
