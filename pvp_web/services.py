@@ -393,7 +393,12 @@ class ProfileService:
             if stop.is_set() or generation != self.generation:
                 return
             profile = bases.get(sid) or self.cache.get(sid) or Profile(steam_id=sid)
-            if not force and profile.rating is not None and profile.peak_score > 0:
+            if (
+                not force
+                and profile.rating is not None
+                and profile.peak_score > 0
+                and profile.stars_known
+            ):
                 continue
             try:
                 if profile.rating is None or force:
@@ -401,11 +406,6 @@ class ProfileService:
                     profile.apply_detail(detail)
                     self.cache.put(profile)
                     self.state.set_profile(profile)
-                if profile.peak_score <= 0 or force:
-                    seasons = client.season_scores(token, sid)
-                    profile.apply_seasons(seasons)
-                self.cache.put(profile)
-                self.state.set_profile(profile)
             except AuthExpired as exc:
                 self.state.set_auth_error(str(exc))
                 return
@@ -413,4 +413,20 @@ class ProfileService:
                 log.debug("detail failed %s: %s", sid, exc)
             except Exception as exc:
                 log.debug("detail error %s: %s", sid, exc)
-            time.sleep(0.08)
+
+            # detailStats 被限流/失败时，赛季接口仍能提供段位分、S 星数和场次。
+            try:
+                if profile.peak_score <= 0 or not profile.stars_known or force:
+                    seasons = client.season_scores(token, sid)
+                    profile.apply_seasons(seasons)
+                    self.cache.put(profile)
+                    self.state.set_profile(profile)
+            except AuthExpired as exc:
+                self.state.set_auth_error(str(exc))
+                return
+            except ApiError as exc:
+                log.debug("season failed %s: %s", sid, exc)
+            except Exception as exc:
+                log.debug("season error %s: %s", sid, exc)
+            # 连续查询 10 人时平台会返回 4013“无效的账号”，放慢并留出重试空间。
+            time.sleep(0.35)

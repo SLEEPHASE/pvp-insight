@@ -41,12 +41,10 @@
     return text.split(' ')[0] || '—';
   }
   function rankStars(player) {
-    if (player.stars_known && player.rank && String(player.rank).indexOf('★') >= 0) {
-      var match = String(player.rank).match(/★\s*(\d+)/);
-      if (match) return '★' + match[1];
-      return '★' + (player.stars || 0);
-    }
-    return '';
+    if (!player.stars_known) return '';
+    var match = String(player.rank || '').match(/★\s*(\d+)/);
+    if (match) return '★' + match[1];
+    return '★' + (player.stars || 0);
   }
   function initial(name, sid) {
     var text = String(name || '').trim();

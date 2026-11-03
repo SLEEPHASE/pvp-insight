@@ -377,12 +377,12 @@ input:focus { outline: none; border-color: var(--accent); }
 
 /* ---------------- 窄屏 / 小覆盖层 ---------------- */
 @media (max-width: 1120px) {
-  .player { grid-template-columns: 42px minmax(0, 1fr) 78px 52px; gap: 8px; }
+  .player { grid-template-columns: 42px minmax(0, 1fr) 74px 50px; gap: 7px; }
   .avatar-wrap { width: 42px; height: 42px; }
   .avatar { width: 40px; height: 40px; }
-  .peak { display: none; }
-  .kda span { display: none; }
   .rating b { font-size: 19px; }
+  .peak { font-size: 8px; }
+  .kda span { font-size: 7.5px; }
   .match-bar { grid-template-columns: 1fr 210px 1fr; }
   .match-left h2 { font-size: 17px; }
 }

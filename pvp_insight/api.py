@@ -61,8 +61,20 @@ def _as_int(value: Any, default: int = 0) -> int:
     try:
         if value is None or value == "":
             return default
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            text = value.strip()
+            # SteamID64 是 17 位整数，绝不能先转 float：
+            # float 精度只有约 15-16 位，会悄悄改掉最后一位。
+            if text.isdigit() or (
+                text[:1] in ("+", "-") and text[1:].isdigit()
+            ):
+                return int(text)
         return int(round(float(value)))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return default
 
 
@@ -245,6 +257,8 @@ class Profile:
 
     def apply_seasons(self, rows: list[dict]) -> None:
         best: tuple[tuple[int, int], str, int] | None = None
+        latest: dict | None = None
+        latest_order = -1
         for row in rows:
             if not isinstance(row, dict):
                 continue
@@ -256,6 +270,25 @@ class Profile:
             key = (score, stars)
             if best is None or key > best[0]:
                 best = (key, season, stars)
+            digits = "".join(ch for ch in season if ch.isdigit())
+            order = int(digits) if digits else 0
+            if latest is None or order > latest_order:
+                latest = row
+                latest_order = order
+        if latest is not None:
+            # detailStats 失败时，用最新赛季兜底：段位分、S 星数、场次。
+            if not self.stars_known or self.score <= 0:
+                self.score = _as_int(
+                    _first(latest, "score", "pvpScore", "aveScore")
+                )
+                self.stars = _as_int(
+                    _first(latest, "curr_s_stars", "stars")
+                )
+                self.stars_known = True
+            if self.matches <= 0:
+                self.matches = _as_int(
+                    _first(latest, "match_count", "matchCount", "cnt")
+                )
         if best is not None:
             (score, stars), season, _ = best
             if score >= self.peak_score:
@@ -434,31 +467,39 @@ class ApiClient:
     def detail_stats(self, token: str, my_steam_id: str, steam_id: str) -> dict:
         url = f"{API_HOST}/api/csgo/home/pvp/detailStats"
         headers = {**_JSON_HEADERS, "token": token}
-        response = self._request(
-            "POST",
-            url,
-            headers=headers,
-            json={
-                "toSteamId": _as_int(steam_id),
-                "csgoSeasonId": "",
-                "mySteamId": _as_int(my_steam_id),
-                "accessToken": token,
-            },
-        )
-        data = self._json(response)
-        code = _as_int(data.get("statusCode"), -1)
-        if code == 0:
-            payload = data.get("data")
-            if isinstance(payload, dict):
-                write_debug_json(f"detail_{steam_id}.json", data)
-                return payload
-            raise ApiError("玩家数据为空")
-        if code in (4001, 401, 403, 1006):
-            raise AuthExpired("登录已失效，请重新扫码")
-        message = str(data.get("errorMessage") or "")
-        if code == 90003:
-            raise ApiError("平台拒绝了请求（请确认账号状态后重试）")
-        raise ApiError(message or f"读取玩家数据失败（{code}）")
+        data: dict = {}
+        for attempt in range(3):
+            response = self._request(
+                "POST",
+                url,
+                headers=headers,
+                json={
+                    "toSteamId": _as_int(steam_id),
+                    "csgoSeasonId": "",
+                    "mySteamId": _as_int(my_steam_id),
+                    "accessToken": token,
+                },
+            )
+            data = self._json(response)
+            code = _as_int(data.get("statusCode"), -1)
+            if code == 0:
+                payload = data.get("data")
+                if isinstance(payload, dict):
+                    write_debug_json(f"detail_{steam_id}.json", data)
+                    return payload
+                raise ApiError("玩家数据为空")
+            # 4013 在平台侧表现为“无效的账号”，连续查多人时常见，
+            # 本质是频率限制；等待后重试。
+            if code == 4013 and attempt < 2:
+                time.sleep(1.2 + attempt * 0.8)
+                continue
+            if code in (4001, 401, 403, 1006):
+                raise AuthExpired("登录已失效，请重新扫码")
+            message = str(data.get("errorMessage") or "")
+            if code == 90003:
+                raise ApiError("平台拒绝了请求（请确认账号状态后重试）")
+            raise ApiError(message or f"读取玩家数据失败（{code}）")
+        raise ApiError("读取玩家数据失败")
 
     def season_scores(self, token: str, steam_id: str) -> list[dict]:
         url = f"{LOGIN_HOST}/user-info/season-ladder-score-list"
